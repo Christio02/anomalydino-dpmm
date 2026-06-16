@@ -6,3 +6,6 @@ __pycache__
 logs
 results
 dataset
+# pixi environments
+.pixi/*
+!.pixi/config.toml
