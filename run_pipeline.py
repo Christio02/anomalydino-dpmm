@@ -100,7 +100,7 @@ def download_mvtec_grid():
     archive_path = "grid.tar.xz"
     extract_dir = "dataset"
 
-    if not os.path.exists(extract_dir):
+    if not os.path.exists(os.path.join(extract_dir, "grid")):
         os.makedirs(extract_dir, exist_ok=True)
         print("📥 Downloading MVTec Grid dataset (repeating patterns)...")
         urllib.request.urlretrieve(dataset_url, archive_path)
