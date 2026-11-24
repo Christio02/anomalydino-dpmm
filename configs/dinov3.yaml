@@ -1,0 +1,34 @@
+experiment:
+  name: "dinov3_dpmm_benchmark"
+  seed: 42
+  image_size: 512
+
+data:
+  train_normal_dir: "data/xray/train_normal"
+  val_normal_dir: "data/xray/val_normal"
+  test_dir: "data/xray/test"
+  batch_size: 12
+
+backbone:
+  provider: "timm" # options: timm, transformers, torchhub_dinov2, torchhub_dinov3
+  model_name: "vit_small_patch16_dinov3.lvd1689m"
+  image_size: 512  # 512 -> 32x32 grid; 768 -> 48x48 grid (must be divisible by 16)
+  layers: [-1]     # e.g., [-1] for final block, or [3, 7, 11] for multi-layer
+  l2_normalize: true
+
+dpmm:
+  max_components: 500
+  epochs: 40
+  gamma: 0.2
+  weight_threshold: 1.0e-6
+  scoring_metric: "cosine"
+  cache_embeddings: true
+
+fusion:
+  gaussian_blur_sigma: 2.0
+  calibration: "none"
+  mode: "max"
+  lse_tau: 2.0
+  image_score_aggregation: "top_k_mean"
+  image_score_top_k_fraction: 0.005
+  fpr_targets: [0.01, 0.05, 0.10]

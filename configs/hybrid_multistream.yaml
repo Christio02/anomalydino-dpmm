@@ -1,0 +1,53 @@
+experiment:
+  name: "hybrid_wrn50_dinov2_multistream"
+  seed: 42
+  image_size: 448
+
+data:
+  train_normal_dir: "data/xray/train_normal"
+  val_normal_dir: "data/xray/val_normal"
+  test_dir: "data/xray/test"
+  batch_size: 12
+
+streams:
+  wrn_l2l3:
+    enabled: true
+    backbone: "wide_resnet50_2"
+    layers: ["layer2", "layer3"]
+    local_pool_kernel: 3
+    reducer:
+      type: "incremental_pca"
+      out_dim: 384
+    dpmm:
+      max_components: 500
+      epochs: 40
+      gamma: 0.2
+      weight_threshold: 1.0e-6
+    scoring_metric: "mahalanobis"
+    mahalanobis_eps: 1.0e-4
+
+  dino_multilayer:
+    enabled: true
+    backbone: "dinov2_vits14"
+    blocks: [4, 8, 12]
+    l2_normalize: true
+    dpmm:
+      max_components: 500
+      epochs: 40
+      gamma: 0.2
+      weight_threshold: 1.0e-6
+    scoring_metric: "cosine"
+
+fusion:
+  gaussian_blur_sigma: 2.0
+  calibration: "robust_iqr"
+  mode: "max"
+  lse_tau: 2.0
+  weights:
+    wrn_l2l3: 0.45
+    dino_b4: 0.25
+    dino_b8: 0.15
+    dino_b12: 0.15
+  image_score_aggregation: "top_k_mean"
+  image_score_top_k_fraction: 0.005
+  fpr_targets: [0.01, 0.05, 0.10]

@@ -3,6 +3,7 @@ __pycache__
 *.pth
 
 .vscode
+.venv/
 logs
 results
 dataset

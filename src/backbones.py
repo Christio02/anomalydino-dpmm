@@ -3,24 +3,25 @@
 # Code from AnomalyDINO is used under the Apache License 2.0            #
 #########################################################################
 
-import cv2
 from collections import deque
+
+import cv2
 import numpy as np
-from PIL import Image
 import torch
+from anomalib.models.components import TimmFeatureExtractor
+from PIL import Image
 from torch.nn import functional as F
 from torch_pca import PCA
-from torchvision import models
-from torchvision import transforms
+from torchvision import models, transforms
 from torchvision.models.feature_extraction import create_feature_extractor
 
-from anomalib.models.components import TimmFeatureExtractor
+from src.features.dinov3_backbone import DINOv3Backbone
 from src.utils import conv_to_vit_features
 
 
 # Base Wrapper Class
 class VisionTransformerWrapper:
-    pca : PCA
+    pca: PCA
 
     def __init__(
         self,
@@ -37,15 +38,17 @@ class VisionTransformerWrapper:
         self.model_name = model_name
         self.model = self.load_model()
         self.num_pca_components = num_pca_components
-        self.pca = PCA(n_components=num_pca_components) if num_pca_components != -1 else None
+        self.pca = (
+            PCA(n_components=num_pca_components) if num_pca_components != -1 else None
+        )
         self.normalize_embeddings = normalize_embeddings
 
     def load_model(self):
         raise NotImplementedError("This method should be overridden in a subclass")
-    
+
     def extract_features(self, img_tensor, use_pca=True):
         raise NotImplementedError("This method should be overridden in a subclass")
-    
+
     def get_embedding_dimension(self):
         raise NotImplementedError("This method should be overridden in a subclass")
 
@@ -54,29 +57,29 @@ class VisionTransformerWrapper:
 class ViTWrapper(VisionTransformerWrapper):
     def load_model(self):
         if self.model_name == "vit_b_16":
-            model = models.vit_b_16(weights = models.ViT_B_16_Weights.DEFAULT)
+            model = models.vit_b_16(weights=models.ViT_B_16_Weights.DEFAULT)
             self.transform = models.ViT_B_16_Weights.DEFAULT.transforms()
-            self.grid_size = (14,14)
+            self.grid_size = (14, 14)
         elif self.model_name == "vit_b_32":
-            model = models.vit_b_32(weights = models.ViT_B_32_Weights.DEFAULT)
+            model = models.vit_b_32(weights=models.ViT_B_32_Weights.DEFAULT)
             self.transform = models.ViT_B_32_Weights.DEFAULT.transforms()
-            self.grid_size = (7,7)
+            self.grid_size = (7, 7)
         elif self.model_name == "vit_l_16":
-            model = models.vit_l_16(weights = models.ViT_L_16_Weights.DEFAULT)
+            model = models.vit_l_16(weights=models.ViT_L_16_Weights.DEFAULT)
             self.transform = models.ViT_L_16_Weights.DEFAULT.transforms()
-            self.grid_size = (14,14)
+            self.grid_size = (14, 14)
         elif self.model_name == "vit_l_32":
-            model = models.vit_l_32(weights = models.ViT_L_32_Weights.DEFAULT)
+            model = models.vit_l_32(weights=models.ViT_L_32_Weights.DEFAULT)
             self.transform = models.ViT_L_32_Weights.DEFAULT.transforms()
-            self.grid_size = (7,7)
+            self.grid_size = (7, 7)
         else:
             raise ValueError(f"Unknown ViT model name: {self.model_name}")
-        
+
         model.eval()
         # print(self.transform)
 
         return model.to(self.device)
-    
+
     def prepare_image(self, img):
         if isinstance(img, str):
             img = Image.open(img).convert("RGB")
@@ -92,10 +95,14 @@ class ViTWrapper(VisionTransformerWrapper):
             class_token = self.model.class_token.expand(patches.size(0), -1, -1)
             patches = torch.cat((class_token, patches), dim=1)
             patch_features = self.model.encoder(patches)
-            return patch_features[:, 1:, :].squeeze().cpu().numpy()  # Exclude the class token
+            return (
+                patch_features[:, 1:, :].squeeze().cpu().numpy()
+            )  # Exclude the class token
 
-    def get_embedding_visualization(self, tokens, grid_size = (14,14), resized_mask=None, normalize=True):
-        pca = PCA(n_components=3, svd_solver='randomized')
+    def get_embedding_visualization(
+        self, tokens, grid_size=(14, 14), resized_mask=None, normalize=True
+    ):
+        pca = PCA(n_components=3, svd_solver="randomized")
         if resized_mask is not None:
             tokens = tokens[resized_mask]
         reduced_tokens = pca.fit_transform(tokens.astype(np.float32))
@@ -105,38 +112,52 @@ class ViTWrapper(VisionTransformerWrapper):
             reduced_tokens = tmp_tokens
         reduced_tokens = reduced_tokens.reshape((*self.grid_size, -1))
         if normalize:
-            normalized_tokens = (reduced_tokens-np.min(reduced_tokens))/(np.max(reduced_tokens)-np.min(reduced_tokens))
+            normalized_tokens = (reduced_tokens - np.min(reduced_tokens)) / (
+                np.max(reduced_tokens) - np.min(reduced_tokens)
+            )
             return normalized_tokens
         else:
             return reduced_tokens
 
-    def compute_background_mask(self, img_features, grid_size, threshold = 10, masking_type = False):
+    def compute_background_mask(
+        self, img_features, grid_size, threshold=10, masking_type=False
+    ):
         # No masking for ViT supported at the moment... (Only DINOv2)
         return np.ones(img_features.shape[0], dtype=bool)
-    
+
 
 # DINOv2 Wrapper
 class DINOv2Wrapper(VisionTransformerWrapper):
     def load_model(self):
-        model = torch.hub.load('facebookresearch/dinov2', self.model_name)
+        model = torch.hub.load("facebookresearch/dinov2", self.model_name)
         model.eval()
 
         # print(f"Loaded model: {self.model_name}")
         # print("Resizing images to", self.smaller_edge_size)
 
         # Set transform for DINOv2
-        self.transform = transforms.Compose([
-            transforms.Resize(size=self.smaller_edge_size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), # imagenet defaults
-            ])
-        
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    size=self.smaller_edge_size,
+                    interpolation=transforms.InterpolationMode.BICUBIC,
+                    antialias=True,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                ),  # imagenet defaults
+            ]
+        )
+
         return model.to(self.device)
 
-
     def get_embedding_dimension(self):
-        return self.model.norm.normalized_shape[0] if self.num_pca_components == -1 else self.num_pca_components
-
+        return (
+            self.model.norm.normalized_shape[0]
+            if self.num_pca_components == -1
+            else self.num_pca_components
+        )
 
     def prepare_image(self, img: str | np.ndarray) -> tuple[torch.Tensor, tuple]:
         if isinstance(img, str):
@@ -147,7 +168,6 @@ class DINOv2Wrapper(VisionTransformerWrapper):
 
         # Crop image to dimensions that are a multiple of the patch size
         return self.crop_image(image_tensor)
-
 
     def crop_image(self, image: torch.Tensor) -> tuple[torch.Tensor, tuple]:
         """
@@ -163,9 +183,11 @@ class DINOv2Wrapper(VisionTransformerWrapper):
 
         image = image[:, :, :cropped_height, :cropped_width]
 
-        grid_size = (cropped_height // self.model.patch_size, cropped_width // self.model.patch_size)
+        grid_size = (
+            cropped_height // self.model.patch_size,
+            cropped_width // self.model.patch_size,
+        )
         return image, grid_size
-
 
     def extract_features(self, image: torch.Tensor, use_pca=True) -> torch.Tensor:
         """
@@ -177,7 +199,7 @@ class DINOv2Wrapper(VisionTransformerWrapper):
         with torch.inference_mode():
             if self.half_precision:
                 image_batch = image.half()
-            
+
             image_batch = image.to(self.device)
 
             tokens = self.model.get_intermediate_layers(image_batch)[0]
@@ -187,14 +209,15 @@ class DINOv2Wrapper(VisionTransformerWrapper):
 
             if self.pca is not None and use_pca:
                 B, N, D = tokens.shape
-                tokens = tokens.reshape(B*N, D)
+                tokens = tokens.reshape(B * N, D)
                 tokens = self.pca.transform(tokens)
                 tokens = tokens.reshape(B, N, -1)
         return tokens
 
-
-    def get_embedding_visualization(self, tokens, grid_size, resized_mask=None, normalize=True):
-        pca = PCA(n_components=3, svd_solver='randomized')
+    def get_embedding_visualization(
+        self, tokens, grid_size, resized_mask=None, normalize=True
+    ):
+        pca = PCA(n_components=3, svd_solver="randomized")
         if resized_mask is not None:
             tokens = tokens[resized_mask]
         reduced_tokens = pca.fit_transform(tokens.astype(np.float32))
@@ -204,11 +227,12 @@ class DINOv2Wrapper(VisionTransformerWrapper):
             reduced_tokens = tmp_tokens
         reduced_tokens = reduced_tokens.reshape((*grid_size, -1))
         if normalize:
-            normalized_tokens = (reduced_tokens-np.min(reduced_tokens))/(np.max(reduced_tokens)-np.min(reduced_tokens))
+            normalized_tokens = (reduced_tokens - np.min(reduced_tokens)) / (
+                np.max(reduced_tokens) - np.min(reduced_tokens)
+            )
             return normalized_tokens
         else:
             return reduced_tokens
-
 
     def fit_pca(self, img_tensor, cfg):
         if self.pca is None:
@@ -218,16 +242,20 @@ class DINOv2Wrapper(VisionTransformerWrapper):
             img_tensor, grid_size = self.crop_image(img_tensor)
             features = self.extract_features(img_tensor, use_pca=False)
             object_mask = self.compute_background_mask(
-                features, grid_size, threshold=cfg.pca_threshold, masking=cfg.object_mask)
+                features,
+                grid_size,
+                threshold=cfg.pca_threshold,
+                masking=cfg.object_mask,
+            )
             object_features = features[object_mask]
             self.pca.fit(object_features)
 
-
-    def compute_background_mask_from_image(self, image, threshold = 10, masking_type = None):
+    def compute_background_mask_from_image(
+        self, image, threshold=10, masking_type=None
+    ):
         image_tensor, grid_size = self.prepare_image(image)
         tokens = self.extract_features(image_tensor)
         return self.compute_background_mask(tokens, grid_size, threshold, masking_type)
-
 
     def compute_background_mask(
         self,
@@ -239,19 +267,19 @@ class DINOv2Wrapper(VisionTransformerWrapper):
         # border: float = 0.2,
     ) -> torch.Tensor:
         # Kernel size for morphological operations should be odd
-        
+
         N, S, D = features.shape
         device = features.device
 
         if not masking:
             return torch.ones((N, S), dtype=bool)
-        
-        pca = PCA(n_components=1, svd_solver='auto')
-        
+
+        pca = PCA(n_components=1, svd_solver="auto")
+
         features = features.cpu().reshape(N * S, D).numpy()
         first_pc = pca.fit_transform(features)
         mask = np.abs(first_pc) > threshold
-        mask = mask.reshape(N, *grid_size)              # NHW
+        mask = mask.reshape(N, *grid_size)  # NHW
 
         # # test whether the center crop of the images is kept (adaptive masking), adapt if your objects of interest are not centered!
         # m = mask.reshape(grid_size)[int(grid_size[0] * border):int(grid_size[0] * (1-border)), int(grid_size[1] * border):int(grid_size[1] * (1-border))]
@@ -260,10 +288,10 @@ class DINOv2Wrapper(VisionTransformerWrapper):
 
         # postprocess mask, fill small holes in the mask, enlarge slightly
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
-        mask = mask.transpose(1,2,0).astype(np.uint8)   # HWN
+        mask = mask.transpose(1, 2, 0).astype(np.uint8)  # HWN
         mask = cv2.dilate(mask, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = mask.astype(bool).transpose(2, 0, 1).reshape(N, S) # NS
+        mask = mask.astype(bool).transpose(2, 0, 1).reshape(N, S)  # NS
         mask = torch.from_numpy(mask).to(device)
 
         return mask
@@ -275,43 +303,55 @@ class ResNetWrapper(VisionTransformerWrapper):
     def load_model(self):
         model_name = self.model_name.split("-")[0]
         self.layers = self.model_name.split("-")[1:]
-        
+
         if "dino" in model_name:
-            resnet_dino = torch.hub.load('facebookresearch/dino:main', 'dino_resnet50')
+            resnet_dino = torch.hub.load("facebookresearch/dino:main", "dino_resnet50")
             model = create_feature_extractor(resnet_dino, self.layers)
         else:
-            model = TimmFeatureExtractor(model_name, self.layers, pre_trained=True, requires_grad=False)
+            model = TimmFeatureExtractor(
+                model_name, self.layers, pre_trained=True, requires_grad=False
+            )
         model.eval()
 
         # print(f"Loaded model: {self.model_name}")
         # print("Resizing images to", self.smaller_edge_size)
 
         # Set transform for DINOv2
-        self.transform = transforms.Compose([
-            transforms.Resize(size=self.smaller_edge_size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), # imagenet defaults
-        ])
-        
-        return model.to(self.device)
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    size=self.smaller_edge_size,
+                    interpolation=transforms.InterpolationMode.BICUBIC,
+                    antialias=True,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                ),  # imagenet defaults
+            ]
+        )
 
+        return model.to(self.device)
 
     def get_embedding_dimension(self):
         if self.num_pca_components != -1:
             return self.num_pca_components
 
-        model = self.model if "dino" in self.model_name else self.model.feature_extractor
+        model = (
+            self.model if "dino" in self.model_name else self.model.feature_extractor
+        )
         embedding_dimension = 0
         for layer in self.layers:
-            (name, last_block), = deque(getattr(model, layer).named_children(), 1)
+            ((name, last_block),) = deque(getattr(model, layer).named_children(), 1)
             if hasattr(last_block, "conv3"):
                 embedding_dimension += last_block.conv3.out_channels
             elif hasattr(last_block, "conv2"):
                 embedding_dimension += last_block.conv2.out_channels
             else:
-                raise AttributeError(f"{last_block} has no attribute \"conv2\" or \"conv3\"")
-        return embedding_dimension 
-
+                raise AttributeError(
+                    f'{last_block} has no attribute "conv2" or "conv3"'
+                )
+        return embedding_dimension
 
     def prepare_image(self, img: str | np.ndarray) -> tuple[torch.Tensor, tuple]:
         if isinstance(img, str):
@@ -323,7 +363,6 @@ class ResNetWrapper(VisionTransformerWrapper):
         # Crop image to dimensions that are a multiple of the patch size
         return self.crop_image(image_tensor)
 
-
     def crop_image(self, image: torch.Tensor) -> tuple[torch.Tensor, tuple]:
         """
         Cropping the image to a size that is a multiple of the patch size.
@@ -333,7 +372,6 @@ class ResNetWrapper(VisionTransformerWrapper):
         :return tuple: Image size in number of patches.
         """
         return image, None
-
 
     def extract_features(self, image: torch.Tensor, use_pca=True) -> torch.Tensor:
         """
@@ -345,14 +383,16 @@ class ResNetWrapper(VisionTransformerWrapper):
         with torch.inference_mode():
             if self.half_precision:
                 image_batch = image.half()
-            
+
             image_batch = image.to(self.device)
 
             features = self.model(image_batch)
             embeddings = features[self.layers[0]]
             for layer in self.layers[1:]:
                 layer_embedding = features[layer]
-                layer_embedding = F.interpolate(layer_embedding, size=embeddings.shape[-2:], mode="nearest")
+                layer_embedding = F.interpolate(
+                    layer_embedding, size=embeddings.shape[-2:], mode="nearest"
+                )
                 embeddings = torch.cat((embeddings, layer_embedding), 1)
 
             if self.normalize_embeddings:
@@ -360,18 +400,17 @@ class ResNetWrapper(VisionTransformerWrapper):
 
             if self.pca is not None and use_pca:
                 N, C, H, W = embeddings.shape
-                embeddings = embeddings.permute(0,2,3,1)     # NCHW -> NHWC
-                embeddings = embeddings.reshape(N*H*W, C)
+                embeddings = embeddings.permute(0, 2, 3, 1)  # NCHW -> NHWC
+                embeddings = embeddings.reshape(N * H * W, C)
                 embeddings = self.pca.transform(embeddings)
                 embeddings = embeddings.reshape(N, H, W, -1)
                 embeddings = embeddings.permute(0, 3, 1, 2)  # NHWC -> NCHW
         return embeddings
 
-
     def fit_pca(self, img_tensor, cfg):
         if self.pca is None:
             return
-        
+
         # CUDA warmup:
         zeros = torch.zeros_like(img_tensor[:1])
         _ = self.extract_features(zeros, use_pca=False)
@@ -381,30 +420,188 @@ class ResNetWrapper(VisionTransformerWrapper):
             features = self.extract_features(img_tensor[:10], use_pca=False)
             features, grid_size = conv_to_vit_features(features)
             object_mask = self.compute_background_mask(
-                features, grid_size, threshold=cfg.pca_threshold, masking=cfg.object_mask)
+                features,
+                grid_size,
+                threshold=cfg.pca_threshold,
+                masking=cfg.object_mask,
+            )
             object_features = features[object_mask]
             self.pca.fit(object_features)
 
-
-    def compute_background_mask_from_image(self, image, threshold = 10, masking_type = None):
+    def compute_background_mask_from_image(
+        self, image, threshold=10, masking_type=None
+    ):
         image_tensor, _ = self.prepare_image(image)
         tokens = self.extract_features(image_tensor)
         return self.compute_background_mask(tokens, masking_type)
 
+    def compute_background_mask(
+        self,
+        features: torch.Tensor,
+        grid_size=None,
+        threshold: int = 10,
+        masking: bool = False,
+    ) -> torch.Tensor:
+
+        N, S, D = features.shape
+        if not masking:
+            return torch.ones((N, S), dtype=bool)
+
+        raise NotImplementedError(
+            "Background Mask computation not implemented for ResNet"
+        )
+
+
+class DINOv3Wrapper(VisionTransformerWrapper):
+    """Legacy wrapper around :class:`DINOv3Backbone` for ``main.py`` compatibility."""
+
+    backbone: DINOv3Backbone
+
+    def load_model(self):
+        provider = "transformers" if self.model_name.startswith("facebook/") else "timm"
+        self.backbone = DINOv3Backbone(
+            model_name=self.model_name,
+            provider=provider,
+            layers=(-1,),
+            l2_normalize=False,
+            device=self.device,
+            use_amp=bool(self.half_precision),
+        )
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    size=self.smaller_edge_size,
+                    interpolation=transforms.InterpolationMode.BICUBIC,
+                    antialias=True,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                ),
+            ]
+        )
+        return self.backbone.model
+
+    def get_embedding_dimension(self):
+        return (
+            self.backbone.embed_dim
+            if self.num_pca_components == -1
+            else self.num_pca_components
+        )
+
+    def prepare_image(self, img: str | np.ndarray) -> tuple[torch.Tensor, tuple]:
+        if isinstance(img, str):
+            img = Image.open(img).convert("RGB")
+        elif isinstance(img, np.ndarray):
+            img = Image.fromarray(img)
+        image_tensor: torch.Tensor = self.transform(img)
+        if image_tensor.ndim == 3:
+            image_tensor = image_tensor.unsqueeze(0)
+        return self.crop_image(image_tensor)
+
+    def crop_image(self, image: torch.Tensor) -> tuple[torch.Tensor, tuple]:
+        """Crop image tensor to dimensions divisible by the backbone patch size."""
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+        _, _, height, width = image.shape
+        patch_size = self.backbone.patch_size
+        cropped_height = height - height % patch_size
+        cropped_width = width - width % patch_size
+
+        image = image[:, :, :cropped_height, :cropped_width]
+        grid_size = (
+            cropped_height // patch_size,
+            cropped_width // patch_size,
+        )
+        return image, grid_size
+
+    def extract_features(self, image: torch.Tensor, use_pca=True) -> torch.Tensor:
+        """Extract patch token features of shape ``(B, N, D)``."""
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+        with torch.inference_mode():
+            feat_map = next(
+                iter(self.backbone.extract_patches(image, l2_normalize=False).values())
+            )
+            b_sz, c_dim, h_p, w_p = feat_map.shape
+            tokens = feat_map.permute(0, 2, 3, 1).reshape(b_sz, h_p * w_p, c_dim)
+
+            if self.normalize_embeddings:
+                tokens = F.normalize(tokens, dim=2)
+
+            if self.pca is not None and use_pca:
+                b_n, n_tok, d_dim = tokens.shape
+                tokens = self.pca.transform(tokens.reshape(b_n * n_tok, d_dim))
+                tokens = tokens.reshape(b_n, n_tok, -1)
+        return tokens
+
+    def get_embedding_visualization(
+        self, tokens, grid_size, resized_mask=None, normalize=True
+    ):
+        pca = PCA(n_components=3, svd_solver="randomized")
+        if resized_mask is not None:
+            tokens = tokens[resized_mask]
+        reduced_tokens = pca.fit_transform(tokens.astype(np.float32))
+        if resized_mask is not None:
+            tmp_tokens = np.zeros((*resized_mask.shape, 3), dtype=reduced_tokens.dtype)
+            tmp_tokens[resized_mask] = reduced_tokens
+            reduced_tokens = tmp_tokens
+        reduced_tokens = reduced_tokens.reshape((*grid_size, -1))
+        if normalize:
+            return (reduced_tokens - np.min(reduced_tokens)) / (
+                np.max(reduced_tokens) - np.min(reduced_tokens)
+            )
+        return reduced_tokens
+
+    def fit_pca(self, img_tensor, cfg):
+        if self.pca is None:
+            return
+
+        with torch.no_grad():
+            img_tensor, grid_size = self.crop_image(img_tensor)
+            features = self.extract_features(img_tensor, use_pca=False)
+            object_mask = self.compute_background_mask(
+                features,
+                grid_size,
+                threshold=cfg.pca_threshold,
+                masking=cfg.object_mask,
+            )
+            object_features = features[object_mask]
+            self.pca.fit(object_features)
+
+    def compute_background_mask_from_image(
+        self, image, threshold=10, masking_type=None
+    ):
+        image_tensor, grid_size = self.prepare_image(image)
+        tokens = self.extract_features(image_tensor)
+        return self.compute_background_mask(tokens, grid_size, threshold, masking_type)
 
     def compute_background_mask(
         self,
         features: torch.Tensor,
-        grid_size = None,
-        threshold: int = 10,
+        grid_size: tuple,
+        threshold: float = 10,
         masking: bool = False,
+        kernel_size: int = 3,
     ) -> torch.Tensor:
-        
-        N, S, D = features.shape
+        n_batch, n_tokens, dim = features.shape
+        device = features.device
+
         if not masking:
-            return torch.ones((N, S), dtype=bool)
-        
-        raise NotImplementedError("Background Mask computation not implemented for ResNet")
+            return torch.ones((n_batch, n_tokens), dtype=bool)
+
+        pca = PCA(n_components=1, svd_solver="auto")
+        flat_features = features.cpu().reshape(n_batch * n_tokens, dim).numpy()
+        first_pc = pca.fit_transform(flat_features)
+        mask = np.abs(first_pc) > threshold
+        mask = mask.reshape(n_batch, *grid_size)
+
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        mask = mask.transpose(1, 2, 0).astype(np.uint8)
+        mask = cv2.dilate(mask, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = mask.astype(bool).transpose(2, 0, 1).reshape(n_batch, n_tokens)
+        return torch.from_numpy(mask).to(device)
 
 
 def get_model(
@@ -420,6 +617,14 @@ def get_model(
 
     if "resnet" in model_name:
         return ResNetWrapper(
+            model_name,
+            device,
+            smaller_edge_size,
+            num_pca_components=num_pca_components,
+            normalize_embeddings=normalize_embeddings,
+        )
+    elif "dinov3" in model_name:
+        return DINOv3Wrapper(
             model_name,
             device,
             smaller_edge_size,

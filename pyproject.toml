@@ -1,0 +1,44 @@
+[project]
+name = "anomalydino-dpmm"
+version = "0.1.0"
+description = "Anomaly detection with DINO embeddings and a Dirichlet process mixture"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "albumentations==2.0.8",
+    "anomalib==0.6.0",
+    "matplotlib==3.8.4",
+    "natsort==7.1.1",
+    "numpy==1.26.4",
+    "omegaconf==2.3.0",
+    "opencv-python-headless==4.10.0.84",
+    "pillow==10.4.0",
+    "pydicom==3.0.1",
+    "pytorch-lightning==1.9.5",
+    "pyyaml==6.0.1",
+    "scikit-learn==1.5.1",
+    "scipy==1.13.1",
+    "torch==2.4.0",
+    "torch-pca==1.0.0",
+    "torchmetrics==0.10.3",
+    "torchtnt==0.2.4",
+    "torchvision==0.19.0",
+    "tqdm==4.66.4",
+    "wandb==0.18.1",
+]
+
+[project.optional-dependencies]
+dinov3 = ["timm>=1.0.21", "transformers>=4.56.0"]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+# Anomalib and imgaug request the GUI wheel, which provides the same cv2 module.
+exclude-dependencies = ["opencv-python"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu118" }
+torchvision = { index = "pytorch-cu118" }
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true

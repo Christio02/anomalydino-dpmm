@@ -26,12 +26,10 @@ If you use this code, please cite:
     ln -s <path/to/dataset> datasets
     ```
 
-2. Create a virtual environment and install all packages. We worked with 
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and run this from the repository root on Linux x86-64. uv creates `.venv` with Python 3.12 and the PyTorch CUDA 11.8 build.
     ```bash
-    conda create -n addpmm python=3.12
-    conda activate addpmm
-    python -m pip install --upgrade pip
-    conda env update -f environment.yml
+    uv sync --locked
+    uv run --locked main.py --help
     ```
 
 
@@ -39,7 +37,7 @@ If you use this code, please cite:
 
 To run inference with an already fitted DPMM, run
 ```bash
-python main.py --config <path/to/cfg.yaml>
+uv run --locked main.py --config <path/to/cfg.yaml>
 ```
 
 ## Inference with our checkpoints (coming soon):
@@ -49,27 +47,27 @@ Our checkpoints will be released soon.
 If you store our checkpoints in the folder `results`, you can use these commands:
 ```bash
 # BraTS2021 (brain MRI) with diagonal covariance
-python main.py --config results/bras2021/dinov2_vits14_dpmm_448_500_diag_pca_-1/cfg.yaml
+uv run --locked main.py --config results/bras2021/dinov2_vits14_dpmm_448_500_diag_pca_-1/cfg.yaml
 # BraTS2021 (brain MRI) with full covariance
-python main.py --config results/bras2021/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
+uv run --locked main.py --config results/bras2021/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
 
 
 # BTCV+LiTs (liver CT) with diagonal covariance
-python main.py --config results/liver/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
+uv run --locked main.py --config results/liver/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
 # BTCV+LiTs (liver CT) with full covariance
-python main.py --config results/liver/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
+uv run --locked main.py --config results/liver/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
 
 
 # RESC (retinal OCT) with diagonal covariance
-python main.py --config results/RESC/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
+uv run --locked main.py --config results/RESC/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
 # RESC (retinal OCT) with full covariance
-python main.py --config results/RESC/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
+uv run --locked main.py --config results/RESC/dinov2_vits14_dpmm_448_500_full_pca_-1/cfg.yaml
 ```
 
 # Fitting a Dirichlet Process Mixture Model (DPMM)
 To fit a DPMM from scratch, adjust one of the experiment configurations in the folder `config`. We provide configurations in the folder `config` for the same setup as the checkpoints above. You can run the fitting with
 ```bash
-python main.py --config config/<your_config>.yaml
+uv run --locked main.py --config config/<your_config>.yaml
 ```
 
 This runs the training followed by evaluating on the test set. Furthermore, anomaly maps and component assignment maps are generated and saved for the validation set using the final model.
