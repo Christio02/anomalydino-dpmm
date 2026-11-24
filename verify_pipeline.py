@@ -24,9 +24,7 @@ def run_audits(data_root):
     print("[Check 1] Device Assignment...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if not torch.cuda.is_available():
-        print(
-            "  ⚠️  WARNING: CUDA is not available. Running on CPU. This will be slow!"
-        )
+        print("  ⚠️  WARNING: CUDA is not available. Running on CPU. This will be slow!")
     else:
         print("  ✅ CUDA is available. Using GPU.")
 

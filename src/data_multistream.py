@@ -90,7 +90,11 @@ def _find_mask_path(image_path: Path, root_dir: Path) -> Path | None:
             mask_base = base / mask_dir_name
             if not mask_base.is_dir():
                 continue
-            search_dirs = [mask_base / rel_parent, mask_base / image_path.parent.name, mask_base]
+            search_dirs = [
+                mask_base / rel_parent,
+                mask_base / image_path.parent.name,
+                mask_base,
+            ]
             for sdir in search_dirs:
                 for name in (stem, f"{stem}_mask"):
                     for ext in mask_exts:
@@ -170,7 +174,9 @@ class XRaySplitDataset(Dataset):
     def _load_mask(self, image_path: Path) -> torch.Tensor:
         mask_path = _find_mask_path(image_path, self.root_dir)
         if mask_path is None:
-            return torch.zeros((1, self.image_size, self.image_size), dtype=torch.float32)
+            return torch.zeros(
+                (1, self.image_size, self.image_size), dtype=torch.float32
+            )
 
         with Image.open(mask_path) as m_img:
             m_gray = m_img.convert("L")
@@ -203,7 +209,9 @@ def verify_zero_split_overlap(
         "test": [Path(p) for p in test_paths],
     }
 
-    resolved_sets = {k: {str(p.resolve()) for p in paths} for k, paths in splits.items()}
+    resolved_sets = {
+        k: {str(p.resolve()) for p in paths} for k, paths in splits.items()
+    }
     stem_sets = {k: {p.stem for p in paths} for k, paths in splits.items()}
 
     pairs = [
@@ -226,7 +234,9 @@ def verify_zero_split_overlap(
             )
 
     if overlap_messages:
-        raise ValueError("Data leakage detected across splits:\n" + "\n".join(overlap_messages))
+        raise ValueError(
+            "Data leakage detected across splits:\n" + "\n".join(overlap_messages)
+        )
 
     return {
         "train_count": len(splits["train_normal"]),

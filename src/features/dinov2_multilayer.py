@@ -31,14 +31,18 @@ class DINOv2MultiLayerStream(FeatureStreamExtractor):
         super().__init__()
         blocks_list = list(blocks)
         if not blocks_list:
-            raise ValueError("`blocks` must be a non-empty sequence of positive integers.")
+            raise ValueError(
+                "`blocks` must be a non-empty sequence of positive integers."
+            )
         for b in blocks_list:
             if isinstance(b, bool) or not isinstance(b, int) or b < 1:
                 raise ValueError(
                     f"All entries in `blocks` must be positive 1-indexed integers, got {b!r}."
                 )
         if len(set(blocks_list)) != len(blocks_list):
-            raise ValueError(f"`blocks` must contain unique indices, got {blocks_list}.")
+            raise ValueError(
+                f"`blocks` must contain unique indices, got {blocks_list}."
+            )
 
         self.backbone = backbone
         self.blocks = tuple(blocks_list)
@@ -87,7 +91,9 @@ class DINOv2MultiLayerStream(FeatureStreamExtractor):
     def extract(self, images: torch.Tensor) -> dict[str, torch.Tensor]:
         """Extract per-block spatial features from ``images`` ``[B, C, H, W]``."""
         if images.ndim != 4:
-            raise ValueError(f"Expected 4D image tensor [B, C, H, W], got shape {images.shape}.")
+            raise ValueError(
+                f"Expected 4D image tensor [B, C, H, W], got shape {images.shape}."
+            )
 
         target_device = self._model_device()
         x = images.to(target_device)

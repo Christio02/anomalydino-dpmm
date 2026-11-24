@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import matplotlib
+
 matplotlib.use("Agg")
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -160,19 +161,29 @@ def save_diagnostic_panels(
 
     def _save_group(indices: list[int], subdir: str, key: str) -> None:
         for rank, idx in enumerate(indices, start=1):
-            stem = Path(image_paths[idx]).stem if idx < len(image_paths) else f"sample_{idx}"
+            stem = (
+                Path(image_paths[idx]).stem
+                if idx < len(image_paths)
+                else f"sample_{idx}"
+            )
             px_area = int(masks_np[idx].sum())
             score_val = float(scores_np[idx])
             out_file = out_root / subdir / f"{rank:02d}_{stem}.png"
-            title = f"{subdir} #{rank} | {stem} | score={score_val:.4f} | gt_px={px_area}"
+            title = (
+                f"{subdir} #{rank} | {stem} | score={score_val:.4f} | gt_px={px_area}"
+            )
 
             _render_7panel_figure(
                 out_path=out_file,
                 image_rgb=_image_to_display_rgb(imgs_np[idx]),
                 gt_mask=masks_np[idx],
                 wrn_map=stream_np["wrn_l2l3"][idx] if "wrn_l2l3" in stream_np else None,
-                dino_b4_map=stream_np["dino_b4"][idx] if "dino_b4" in stream_np else None,
-                dino_b12_map=stream_np["dino_b12"][idx] if "dino_b12" in stream_np else None,
+                dino_b4_map=stream_np["dino_b4"][idx]
+                if "dino_b4" in stream_np
+                else None,
+                dino_b12_map=stream_np["dino_b12"][idx]
+                if "dino_b12" in stream_np
+                else None,
                 fused_map=fused_np[idx],
                 binary_mask_1pct=bin_np[idx],
                 title=title,

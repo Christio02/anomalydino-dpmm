@@ -15,7 +15,14 @@ from src.backbones import get_model
 from src.data import get_datasets
 from src.train import train_dpmm_model
 from src.test import test_dpmm_model
-from src.utils import config_get, dump_config, load_config, makedirs, setup_device, setup_wandb
+from src.utils import (
+    config_get,
+    dump_config,
+    load_config,
+    makedirs,
+    setup_device,
+    setup_wandb,
+)
 
 
 def parse_args():
@@ -30,14 +37,14 @@ def main():
     tracemalloc.start()
 
     # command_line_args = OmegaConf.from_cli()
-    
+
     cli_args = parse_args()
     cfg = load_config(cli_args.config)
 
     logdir = cfg.logdir
     if cfg.tag != None:
         logdir += "_" + cfg.tag
-    
+
     cfg_export_path = os.path.join(logdir, "cfg.yaml")
     is_resumed = os.path.exists(cfg_export_path) and cfg.resume
     if is_resumed and not cli_args.override_config:
@@ -82,17 +89,51 @@ def main():
             splits=["val", "test"],
         )
 
-        dataloader_train = DataLoader(dataset_train, batch_size=cfg.embedding_batch_size, shuffle=True, drop_last=False, num_workers=0)
-        dataloader_val_normal = DataLoader(dataset_val_normal, batch_size=cfg.embedding_batch_size, shuffle=False, drop_last=False, num_workers=0)
-        dataloader_val_anomalous = DataLoader(dataset_val_anomalous, batch_size=cfg.embedding_batch_size, shuffle=False, drop_last=False, num_workers=0)
-        dataloader_test_normal = DataLoader(dataset_test_normal, batch_size=cfg.embedding_batch_size, shuffle=False, drop_last=False, num_workers=0)
-        dataloader_test_anomalous = DataLoader(dataset_test_anomalous, batch_size=cfg.embedding_batch_size, shuffle=False, drop_last=False, num_workers=0)
+        dataloader_train = DataLoader(
+            dataset_train,
+            batch_size=cfg.embedding_batch_size,
+            shuffle=True,
+            drop_last=False,
+            num_workers=0,
+        )
+        dataloader_val_normal = DataLoader(
+            dataset_val_normal,
+            batch_size=cfg.embedding_batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=0,
+        )
+        dataloader_val_anomalous = DataLoader(
+            dataset_val_anomalous,
+            batch_size=cfg.embedding_batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=0,
+        )
+        dataloader_test_normal = DataLoader(
+            dataset_test_normal,
+            batch_size=cfg.embedding_batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=0,
+        )
+        dataloader_test_anomalous = DataLoader(
+            dataset_test_anomalous,
+            batch_size=cfg.embedding_batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=0,
+        )
 
         if cfg.embedding_pca_components != -1:
-            dataloader_pca = DataLoader(dataset_train, batch_size=cfg.embedding_pca_batchsize, shuffle=True, drop_last=False)
+            dataloader_pca = DataLoader(
+                dataset_train,
+                batch_size=cfg.embedding_pca_batchsize,
+                shuffle=True,
+                drop_last=False,
+            )
             images, _, _ = next(iter(dataloader_pca))
             embedding_model.fit_pca(images, cfg)
-
 
         model_name = cfg.density_model.model_name
         if model_name.startswith("dpmm"):
@@ -123,7 +164,7 @@ def main():
             )
         else:
             raise NotImplementedError(f"unknown model name {model_name}")
-        
+
     if cfg.wandb_log:
         wandb.finish()
 
@@ -135,5 +176,5 @@ def main():
     print("Finished and evaluated all runs!")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

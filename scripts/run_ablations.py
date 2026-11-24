@@ -171,7 +171,9 @@ def print_experiment_matrix(
     cfg: dict[str, Any],
 ) -> None:
     """Print the E0-E8 experiment matrix cleanly for dry-run inspection."""
-    print(f"Experiment: {cfg['experiment']['name']} | image_size={cfg['experiment']['image_size']}")
+    print(
+        f"Experiment: {cfg['experiment']['name']} | image_size={cfg['experiment']['image_size']}"
+    )
     print(f"Seeds: {seeds} | Selected: {selected}")
     print("-" * 108)
     header = f"{'ID':<4} {'Streams':<38} {'WRN Metric':<14} {'Calibration':<14} {'Fusion':<14} {'Tau':<6}"
@@ -185,14 +187,18 @@ def print_experiment_matrix(
         cal_str = str(spec["calibration"])
         fus_str = str(spec["fusion"])
         tau_str = str(spec["lse_tau"] if spec["lse_tau"] is not None else "-")
-        print(f"{exp_id:<3}{mark} {streams_str:<38} {wrn_str:<14} {cal_str:<14} {fus_str:<14} {tau_str:<6}")
+        print(
+            f"{exp_id:<3}{mark} {streams_str:<38} {wrn_str:<14} {cal_str:<14} {fus_str:<14} {tau_str:<6}"
+        )
     print("-" * 108)
 
 
 def build_dinov3_ab_specs(cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Build the 4 head-to-head DINOv2 vs DINOv3 A/B benchmark specs (AB0-AB3)."""
     backbone_cfg = cfg.get("backbone", {})
-    dpmm_cfg = cfg.get("dpmm") or cfg.get("streams", {}).get("dino_multilayer", {}).get("dpmm", {})
+    dpmm_cfg = cfg.get("dpmm") or cfg.get("streams", {}).get("dino_multilayer", {}).get(
+        "dpmm", {}
+    )
     l2_normalize = bool(backbone_cfg.get("l2_normalize", True))
     cache_embeddings = bool(dpmm_cfg.get("cache_embeddings", True))
 
@@ -380,7 +386,9 @@ def _score_loader(
     with torch.no_grad():
         for imgs, _, _, _ in loader:
             imgs = imgs.to(device)
-            scored = dpmm.score_images(extractor, imgs, metric_overrides={stream_name: metric_key})
+            scored = dpmm.score_images(
+                extractor, imgs, metric_overrides={stream_name: metric_key}
+            )
             maps.append(scored[stream_name].cpu())
     return torch.cat(maps, dim=0)
 
@@ -443,8 +451,12 @@ def _train_or_get_stream_cache(
     else:
         extractor, dpmm = model_cache[model_key]
 
-    val_maps = _score_loader(extractor, dpmm, dataloaders["val_normal"], stream_name, metric_key, device)
-    test_maps = _score_loader(extractor, dpmm, dataloaders["test"], stream_name, metric_key, device)
+    val_maps = _score_loader(
+        extractor, dpmm, dataloaders["val_normal"], stream_name, metric_key, device
+    )
+    test_maps = _score_loader(
+        extractor, dpmm, dataloaders["test"], stream_name, metric_key, device
+    )
 
     entry = {
         "model": dpmm,
@@ -459,15 +471,24 @@ def _train_or_get_stream_cache(
 def run_dinov3_ab(args: argparse.Namespace) -> None:
     """Execute head-to-head DINOv2 vs DINOv3 A/B benchmark (AB0-AB3)."""
     config_path = args.config
-    if config_path == "configs/hybrid_multistream.yaml" and (REPO_ROOT / "configs/dinov3.yaml").exists():
+    if (
+        config_path == "configs/hybrid_multistream.yaml"
+        and (REPO_ROOT / "configs/dinov3.yaml").exists()
+    ):
         config_path = "configs/dinov3.yaml"
     cfg = load_config(config_path)
     specs = build_dinov3_ab_specs(cfg)
 
-    selected = [e.upper() for e in args.experiments] if args.experiments else list(ALL_DINOV3_AB)
+    selected = (
+        [e.upper() for e in args.experiments]
+        if args.experiments
+        else list(ALL_DINOV3_AB)
+    )
     for exp_id in selected:
         if exp_id not in specs:
-            raise ValueError(f"Unknown DINOv3 A/B experiment '{exp_id}'. Valid choices: {list(ALL_DINOV3_AB)}")
+            raise ValueError(
+                f"Unknown DINOv3 A/B experiment '{exp_id}'. Valid choices: {list(ALL_DINOV3_AB)}"
+            )
 
     seeds = list(args.seeds) if args.seeds else [int(cfg["experiment"].get("seed", 42))]
 
@@ -483,13 +504,17 @@ def run_dinov3_ab(args: argparse.Namespace) -> None:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    dpmm_cfg = cfg.get("dpmm") or cfg.get("streams", {}).get("dino_multilayer", {}).get("dpmm", {})
+    dpmm_cfg = cfg.get("dpmm") or cfg.get("streams", {}).get("dino_multilayer", {}).get(
+        "dpmm", {}
+    )
     metric_key = str(dpmm_cfg.get("scoring_metric", "cosine"))
     fusion_cfg = cfg.get("fusion", {})
     calibration = str(fusion_cfg.get("calibration", "none"))
     fusion_mode = str(fusion_cfg.get("mode", "max"))
     lse_tau = float(fusion_cfg.get("lse_tau", 2.0))
-    fpr_targets = tuple(float(x) for x in fusion_cfg.get("fpr_targets", [0.01, 0.05, 0.10]))
+    fpr_targets = tuple(
+        float(x) for x in fusion_cfg.get("fpr_targets", [0.01, 0.05, 0.10])
+    )
     image_score_agg = str(fusion_cfg.get("image_score_aggregation", "top_k_mean"))
     top_k_frac = float(fusion_cfg.get("image_score_top_k_fraction", 0.005))
     blur_sigma = float(fusion_cfg.get("gaussian_blur_sigma", 2.0))
@@ -505,7 +530,10 @@ def run_dinov3_ab(args: argparse.Namespace) -> None:
             spec_image_size = int(spec["image_size"])
             if spec_image_size not in data_cache:
                 exp_cfg = dict(cfg)
-                exp_cfg["experiment"] = {**cfg.get("experiment", {}), "image_size": spec_image_size}
+                exp_cfg["experiment"] = {
+                    **cfg.get("experiment", {}),
+                    "image_size": spec_image_size,
+                }
                 dataloaders = build_multistream_dataloaders(exp_cfg)
                 test_data = _collect_split_batches(dataloaders["test"])
                 val_data = _collect_split_batches(dataloaders["val_normal"])
@@ -547,8 +575,17 @@ def run_dinov3_ab(args: argparse.Namespace) -> None:
                 cache_embeddings=bool(spec["cache_embeddings"]),
             )
 
-            val_maps = _score_loader(extractor, dpmm, dataloaders["val_normal"], stream_name, metric_key, device)
-            test_maps = _score_loader(extractor, dpmm, dataloaders["test"], stream_name, metric_key, device)
+            val_maps = _score_loader(
+                extractor,
+                dpmm,
+                dataloaders["val_normal"],
+                stream_name,
+                metric_key,
+                device,
+            )
+            test_maps = _score_loader(
+                extractor, dpmm, dataloaders["test"], stream_name, metric_key, device
+            )
             val_stream_maps = {stream_name: val_maps}
             test_stream_maps = {stream_name: test_maps}
 
@@ -572,14 +609,18 @@ def run_dinov3_ab(args: argparse.Namespace) -> None:
             test_image_scores = pred["image_scores"]
             thresholds = pipeline.fusion_head.thresholds
 
-            px_metrics = compute_pixel_metrics(test_fused, test_data["masks"], thresholds)
+            px_metrics = compute_pixel_metrics(
+                test_fused, test_data["masks"], thresholds
+            )
             img_metrics = compute_image_metrics(test_image_scores, test_data["labels"])
             strat_metrics = compute_stratified_metrics(
                 test_fused, test_data["masks"], test_data["labels"], thresholds
             )
 
             sample_val = {k: v[:1] for k, v in val_stream_maps.items()}
-            latency_ms = measure_inference_latency_ms(pipeline.predict, sample_val, device=device)
+            latency_ms = measure_inference_latency_ms(
+                pipeline.predict, sample_val, device=device
+            )
             peak_vram_gb = get_peak_vram_gb(device)
 
             record = {
@@ -591,7 +632,9 @@ def run_dinov3_ab(args: argparse.Namespace) -> None:
                 "wrn_metric": None,
                 "calibration": calibration,
                 "fusion": fusion_mode,
-                "active_prototypes": int(dpmm.get_active_prototype_counts().get(stream_name, 0)),
+                "active_prototypes": int(
+                    dpmm.get_active_prototype_counts().get(stream_name, 0)
+                ),
                 **px_metrics,
                 **img_metrics,
                 "latency_ms": latency_ms,
@@ -601,7 +644,11 @@ def run_dinov3_ab(args: argparse.Namespace) -> None:
             }
             all_results.append(record)
 
-            fpr_key = 0.01 if 0.01 in pred["binary_masks"] else min(pred["binary_masks"].keys())
+            fpr_key = (
+                0.01
+                if 0.01 in pred["binary_masks"]
+                else min(pred["binary_masks"].keys())
+            )
             bin_1pct = pred["binary_masks"][fpr_key].to(torch.float32)
             save_diagnostic_panels(
                 output_dir=out_dir / "diagnostics" / f"{exp_id}_seed{seed}",
@@ -637,7 +684,9 @@ def run_ablations(args: argparse.Namespace) -> None:
 
     for exp_id in selected:
         if exp_id not in specs:
-            raise ValueError(f"Unknown experiment '{exp_id}'. Valid choices: {list(ALL_EXPERIMENTS)}")
+            raise ValueError(
+                f"Unknown experiment '{exp_id}'. Valid choices: {list(ALL_EXPERIMENTS)}"
+            )
 
     seeds = list(args.seeds) if args.seeds else [int(cfg["experiment"].get("seed", 42))]
 
@@ -656,7 +705,9 @@ def run_ablations(args: argparse.Namespace) -> None:
     val_data = _collect_split_batches(dataloaders["val_normal"])
     image_size = int(cfg["experiment"].get("image_size", 448))
     fusion_cfg = cfg.get("fusion", {})
-    fpr_targets = tuple(float(x) for x in fusion_cfg.get("fpr_targets", [0.01, 0.05, 0.10]))
+    fpr_targets = tuple(
+        float(x) for x in fusion_cfg.get("fpr_targets", [0.01, 0.05, 0.10])
+    )
     image_score_agg = str(fusion_cfg.get("image_score_aggregation", "top_k_mean"))
     top_k_frac = float(fusion_cfg.get("image_score_top_k_fraction", 0.005))
     blur_sigma = float(fusion_cfg.get("gaussian_blur_sigma", 2.0))
@@ -703,7 +754,9 @@ def run_ablations(args: argparse.Namespace) -> None:
                 fusion_head=FusionHead(
                     mode=spec["fusion"],
                     weights=spec["weights"],
-                    lse_tau=float(spec["lse_tau"]) if spec["lse_tau"] is not None else 2.0,
+                    lse_tau=float(spec["lse_tau"])
+                    if spec["lse_tau"] is not None
+                    else 2.0,
                     image_score_aggregation=image_score_agg,
                     image_score_top_k_fraction=top_k_frac,
                     fpr_targets=fpr_targets,
@@ -717,14 +770,18 @@ def run_ablations(args: argparse.Namespace) -> None:
             test_image_scores = pred["image_scores"]
             thresholds = pipeline.fusion_head.thresholds
 
-            px_metrics = compute_pixel_metrics(test_fused, test_data["masks"], thresholds)
+            px_metrics = compute_pixel_metrics(
+                test_fused, test_data["masks"], thresholds
+            )
             img_metrics = compute_image_metrics(test_image_scores, test_data["labels"])
             strat_metrics = compute_stratified_metrics(
                 test_fused, test_data["masks"], test_data["labels"], thresholds
             )
 
             sample_val = {k: v[:1] for k, v in val_stream_maps.items()}
-            latency_ms = measure_inference_latency_ms(pipeline.predict, sample_val, device=device)
+            latency_ms = measure_inference_latency_ms(
+                pipeline.predict, sample_val, device=device
+            )
             peak_vram_gb = get_peak_vram_gb(device)
 
             record = {
@@ -749,7 +806,11 @@ def run_ablations(args: argparse.Namespace) -> None:
 
             # Save diagnostic panels for E0, E4, E8 (or any selected final model).
             if exp_id in {"E0", "E4", "E8"}:
-                fpr_key = 0.01 if 0.01 in pred["binary_masks"] else min(pred["binary_masks"].keys())
+                fpr_key = (
+                    0.01
+                    if 0.01 in pred["binary_masks"]
+                    else min(pred["binary_masks"].keys())
+                )
                 bin_1pct = pred["binary_masks"][fpr_key].to(torch.float32)
                 save_diagnostic_panels(
                     output_dir=out_dir / "diagnostics" / f"{exp_id}_seed{seed}",
@@ -769,11 +830,15 @@ def run_ablations(args: argparse.Namespace) -> None:
     else:
         write_ablation_reports(all_results, out_dir)
         if baseline_seed_results:
-            write_baseline_metrics(baseline_seed_results, out_dir / "baseline_metrics.json")
+            write_baseline_metrics(
+                baseline_seed_results, out_dir / "baseline_metrics.json"
+            )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run controlled E0-E8 multi-stream ablations.")
+    parser = argparse.ArgumentParser(
+        description="Run controlled E0-E8 multi-stream ablations."
+    )
     parser.add_argument(
         "--config",
         type=str,

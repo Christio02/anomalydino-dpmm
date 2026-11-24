@@ -23,7 +23,9 @@ def _squeeze_maps(maps: Any) -> np.ndarray:
     if arr.ndim == 4 and arr.shape[1] == 1:
         arr = arr[:, 0]
     if arr.ndim != 3:
-        raise ValueError(f"Expected 3D (N, H, W) or 4D (N, 1, H, W) array, got shape {arr.shape}")
+        raise ValueError(
+            f"Expected 3D (N, H, W) or 4D (N, 1, H, W) array, got shape {arr.shape}"
+        )
     return arr
 
 
@@ -47,7 +49,9 @@ def _lookup_threshold(thresholds: Mapping[Any, float], target_fpr: float) -> flo
                 return float(v)
         except (TypeError, ValueError):
             continue
-    raise KeyError(f"Threshold for FPR={target_fpr} not found in {list(thresholds.keys())}")
+    raise KeyError(
+        f"Threshold for FPR={target_fpr} not found in {list(thresholds.keys())}"
+    )
 
 
 def _safe_auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -134,9 +138,13 @@ def compute_stratified_metrics(
     results: dict[str, dict[str, float | int]] = {}
     for bucket_name, low, high in area_buckets:
         if low == 0.0:
-            in_bucket = (area_fractions[anom_idx] > low) & (area_fractions[anom_idx] < high)
+            in_bucket = (area_fractions[anom_idx] > low) & (
+                area_fractions[anom_idx] < high
+            )
         else:
-            in_bucket = (area_fractions[anom_idx] >= low) & (area_fractions[anom_idx] < high)
+            in_bucket = (area_fractions[anom_idx] >= low) & (
+                area_fractions[anom_idx] < high
+            )
         bucket_anom_idx = anom_idx[in_bucket]
         n_anom = int(bucket_anom_idx.size)
 
@@ -203,4 +211,4 @@ def get_peak_vram_gb(device: torch.device | str) -> float:
     if not _is_cuda_device(device):
         return 0.0
     peak_bytes = torch.cuda.max_memory_allocated(device)
-    return float(peak_bytes / (1024.0 ** 3))
+    return float(peak_bytes / (1024.0**3))

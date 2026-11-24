@@ -23,7 +23,11 @@ from src.data_multistream import XRaySplitDataset
 from src.features.base import MultiStreamFeatureExtractor
 from src.features.dinov3_backbone import DINOv3Backbone
 from src.features.wideresnet import WideResNet50Stream
-from src.fusion.calibrator import CalibrationFusionPipeline, FusionHead, ZScoreCalibrator
+from src.fusion.calibrator import (
+    CalibrationFusionPipeline,
+    FusionHead,
+    ZScoreCalibrator,
+)
 from src.models.multi_stream_dpmm import MultiStreamDPMM, StreamDPMMConfig
 
 
@@ -163,7 +167,9 @@ class TestDINOv3Backbone(unittest.TestCase):
         self.assertEqual(feat.dtype, torch.float32)
         self.assertTrue(torch.isfinite(feat).all())
         norms = torch.linalg.vector_norm(feat, ord=2, dim=1)
-        self.assertTrue(torch.allclose(norms, torch.ones_like(norms), atol=1e-5, rtol=0.0))
+        self.assertTrue(
+            torch.allclose(norms, torch.ones_like(norms), atol=1e-5, rtol=0.0)
+        )
 
     def test_timm_vits16_resolutions_norms_and_single_forward_multilayer(self) -> None:
         mock_timm = _MockTimmViT(patch_size=16, embed_dim=384, num_register_tokens=4)
@@ -187,7 +193,9 @@ class TestDINOv3Backbone(unittest.TestCase):
         x_768 = torch.randn(2, 3, 768, 768)
         stream_out_768 = backbone.extract(x_768)
         self.assertEqual(mock_timm.call_count, 2)
-        self.assertEqual(list(stream_out_768.keys()), ["dino_b4", "dino_b8", "dino_b12"])
+        self.assertEqual(
+            list(stream_out_768.keys()), ["dino_b4", "dino_b8", "dino_b12"]
+        )
         for name, feat in stream_out_768.items():
             self.assertEqual(feat.shape, (2, 384, 48, 48), msg=f"stream={name}")
             self._assert_unit_l2_float32_finite(feat)
@@ -238,7 +246,9 @@ class TestDINOv3Backbone(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             with self.assertRaises(ValueError):
-                XRaySplitDataset(tmp_dir, image_size=500, split="train_normal", patch_size=16)
+                XRaySplitDataset(
+                    tmp_dir, image_size=500, split="train_normal", patch_size=16
+                )
 
     def test_cross_backend_parity_timm_vs_transformers(self) -> None:
         shared_proj = nn.Conv2d(3, 384, kernel_size=16, stride=16)
@@ -351,7 +361,9 @@ class TestDINOv3Backbone(unittest.TestCase):
 
         # 2. Disk cache mode (cache_dir=tmp_dir)
         with tempfile.TemporaryDirectory() as tmp_dir:
-            mock_disk = _MockTimmViT(patch_size=16, embed_dim=384, num_register_tokens=4)
+            mock_disk = _MockTimmViT(
+                patch_size=16, embed_dim=384, num_register_tokens=4
+            )
             bb_disk = DINOv3Backbone(
                 model_name="vit_small_patch16_dinov3.lvd1689m",
                 provider="timm",
@@ -360,7 +372,11 @@ class TestDINOv3Backbone(unittest.TestCase):
                 model=mock_disk,
             )
             dpmm_disk = MultiStreamDPMM(
-                [StreamDPMMConfig(name="dino_b12", dim=384, max_components=12, epochs=4)],
+                [
+                    StreamDPMMConfig(
+                        name="dino_b12", dim=384, max_components=12, epochs=4
+                    )
+                ],
                 device="cpu",
             )
             dpmm_disk.fit(
@@ -376,7 +392,9 @@ class TestDINOv3Backbone(unittest.TestCase):
 
             cached_files = sorted(Path(tmp_dir).glob("*.pt"))
             self.assertEqual(len(cached_files), expected_calls)
-            loaded_batch = torch.load(cached_files[0], map_location="cpu", weights_only=True)
+            loaded_batch = torch.load(
+                cached_files[0], map_location="cpu", weights_only=True
+            )
             self.assertEqual(loaded_batch["dino_b12"].dtype, torch.float16)
 
             disk_maps = dpmm_disk.score_images(bb_disk, test_images)

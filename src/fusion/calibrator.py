@@ -83,7 +83,9 @@ def upsample_score_maps(
 ) -> dict[str, torch.Tensor]:
     """Upsample a dictionary of per-stream score maps to ``target_size``."""
     return {
-        stream: upsample_score_map(score_map, target_size=target_size, blur_sigma=blur_sigma)
+        stream: upsample_score_map(
+            score_map, target_size=target_size, blur_sigma=blur_sigma
+        )
         for stream, score_map in score_maps.items()
     }
 
@@ -115,12 +117,16 @@ class BaseCalibrator(ABC):
     def load_state_dict(self, state: dict[str, Any]) -> None:
         """Restore calibrator parameters and state from ``state``."""
 
-    def fit_transform(self, val_normal_maps: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def fit_transform(
+        self, val_normal_maps: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         """Fit on ``val_normal_maps`` and return their calibrated transforms."""
         self.fit(val_normal_maps)
         return self.transform(val_normal_maps)
 
-    def fit_from_batches(self, batch_iter: Iterable[dict[str, torch.Tensor]]) -> BaseCalibrator:
+    def fit_from_batches(
+        self, batch_iter: Iterable[dict[str, torch.Tensor]]
+    ) -> BaseCalibrator:
         """Fit by accumulating stream batches from an iterable along the batch dimension."""
         accumulated: dict[str, list[torch.Tensor]] = {}
         expected_keys: set[str] | None = None
@@ -144,7 +150,9 @@ class BaseCalibrator(ABC):
         if expected_keys is None:
             raise ValueError("batch_iter yielded no batches.")
 
-        merged = {key: torch.cat(tensors, dim=0) for key, tensors in accumulated.items()}
+        merged = {
+            key: torch.cat(tensors, dim=0) for key, tensors in accumulated.items()
+        }
         return self.fit(merged)
 
 
@@ -198,7 +206,9 @@ class ZScoreCalibrator(BaseCalibrator):
 
     def transform(self, score_maps: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         if not self._is_fitted:
-            raise RuntimeError("ZScoreCalibrator must be fitted before calling transform().")
+            raise RuntimeError(
+                "ZScoreCalibrator must be fitted before calling transform()."
+            )
         calibrated: dict[str, torch.Tensor] = {}
         for stream, score_map in score_maps.items():
             if stream not in self.stats:
@@ -248,7 +258,9 @@ class RobustIQRCalibrator(BaseCalibrator):
             if score_map.numel() == 0:
                 raise ValueError(f"Stream '{stream}' has no elements.")
             # Use NumPy on CPU float64 to avoid torch.quantile's 2^24 element limit.
-            pixels = score_map.detach().cpu().to(dtype=torch.float64).reshape(-1).numpy()
+            pixels = (
+                score_map.detach().cpu().to(dtype=torch.float64).reshape(-1).numpy()
+            )
             q25, q50, q75 = np.quantile(pixels, [0.25, 0.50, 0.75])
             stats[stream] = (float(q25), float(q50), float(q75))
         self.stats = stats
@@ -257,7 +269,9 @@ class RobustIQRCalibrator(BaseCalibrator):
 
     def transform(self, score_maps: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         if not self._is_fitted:
-            raise RuntimeError("RobustIQRCalibrator must be fitted before calling transform().")
+            raise RuntimeError(
+                "RobustIQRCalibrator must be fitted before calling transform()."
+            )
         calibrated: dict[str, torch.Tensor] = {}
         for stream, score_map in score_maps.items():
             if stream not in self.stats:
@@ -328,7 +342,9 @@ class FusionHead:
         )
         self.mode: str = mode
         self.weights: dict[str, float] | None = (
-            {str(k): float(v) for k, v in weights.items()} if weights is not None else None
+            {str(k): float(v) for k, v in weights.items()}
+            if weights is not None
+            else None
         )
         self.lse_tau: float = float(lse_tau)
         self.image_score_aggregation: str = image_score_aggregation
@@ -346,7 +362,9 @@ class FusionHead:
         fpr_targets: Iterable[float],
     ) -> None:
         if mode not in cls._VALID_MODES:
-            raise ValueError(f"mode must be in {sorted(cls._VALID_MODES)}, got '{mode}'.")
+            raise ValueError(
+                f"mode must be in {sorted(cls._VALID_MODES)}, got '{mode}'."
+            )
         if lse_tau <= 0.0:
             raise ValueError(f"lse_tau must be > 0, got {lse_tau}.")
         if image_score_aggregation not in cls._VALID_AGGREGATIONS:
@@ -395,7 +413,9 @@ class FusionHead:
                 raise ValueError(f"All stream weights must be >= 0, got {raw_weights}.")
             weight_sum = sum(raw_weights)
             if weight_sum <= 0.0:
-                raise ValueError(f"Sum of stream weights must be > 0, got {weight_sum}.")
+                raise ValueError(
+                    f"Sum of stream weights must be > 0, got {weight_sum}."
+                )
 
             norm_weights = [w / weight_sum for w in raw_weights]
             weight_tensor = torch.tensor(
@@ -415,19 +435,31 @@ class FusionHead:
         if fused_val_normal_maps.numel() == 0:
             raise ValueError("fused_val_normal_maps must not be empty.")
 
-        targets = self.fpr_targets if fpr_targets is None else tuple(float(t) for t in fpr_targets)
+        targets = (
+            self.fpr_targets
+            if fpr_targets is None
+            else tuple(float(t) for t in fpr_targets)
+        )
         for fpr in targets:
             if not (0.0 < fpr < 1.0):
                 raise ValueError(f"Each FPR target must be in (0, 1), got {fpr}.")
 
-        pixels = fused_val_normal_maps.detach().cpu().to(dtype=torch.float64).reshape(-1).numpy()
+        pixels = (
+            fused_val_normal_maps.detach()
+            .cpu()
+            .to(dtype=torch.float64)
+            .reshape(-1)
+            .numpy()
+        )
         for fpr in targets:
             thr = float(np.quantile(pixels, 1.0 - fpr))
             self.thresholds[float(fpr)] = thr
 
         return dict(self.thresholds)
 
-    def predict_mask(self, fused_maps: torch.Tensor, fpr_target: float = 0.01) -> torch.Tensor:
+    def predict_mask(
+        self, fused_maps: torch.Tensor, fpr_target: float = 0.01
+    ) -> torch.Tensor:
         """Threshold fused score maps into boolean anomaly masks for a fitted FPR target."""
         key = float(fpr_target)
         if key not in self.thresholds:
@@ -478,7 +510,9 @@ class FusionHead:
         raw_weights = state.get("weights")
         self.mode = mode
         self.weights = (
-            {str(k): float(v) for k, v in raw_weights.items()} if raw_weights is not None else None
+            {str(k): float(v) for k, v in raw_weights.items()}
+            if raw_weights is not None
+            else None
         )
         self.lse_tau = lse_tau
         self.image_score_aggregation = image_score_aggregation
@@ -506,12 +540,16 @@ class CalibrationFusionPipeline:
         self.calibrator: BaseCalibrator = (
             calibrator if calibrator is not None else IdentityCalibrator()
         )
-        self.fusion_head: FusionHead = fusion_head if fusion_head is not None else FusionHead()
+        self.fusion_head: FusionHead = (
+            fusion_head if fusion_head is not None else FusionHead()
+        )
 
     def fit(self, val_normal_raw_maps: dict[str, torch.Tensor]) -> dict[str, Any]:
         """Upsample, fit calibrator, fuse normal validation maps, and calibrate FPR thresholds."""
         upsampled_maps = upsample_score_maps(
-            val_normal_raw_maps, target_size=self.target_size, blur_sigma=self.blur_sigma
+            val_normal_raw_maps,
+            target_size=self.target_size,
+            blur_sigma=self.blur_sigma,
         )
         calibrated_maps = self.calibrator.fit_transform(upsampled_maps)
         fused_map = self.fusion_head.fuse(calibrated_maps)
@@ -573,7 +611,9 @@ class CalibrationFusionPipeline:
                 "zscore": ZScoreCalibrator,
                 "robust_iqr": RobustIQRCalibrator,
             }.get(cal_type)
-            if expected_cls is not None and not isinstance(self.calibrator, expected_cls):
+            if expected_cls is not None and not isinstance(
+                self.calibrator, expected_cls
+            ):
                 self.calibrator = build_calibrator(cal_type)
         self.calibrator.load_state_dict(cal_state)
         self.fusion_head.load_state_dict(state["fusion_head"])

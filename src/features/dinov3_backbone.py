@@ -582,8 +582,9 @@ class DINOv3Backbone(FeatureStreamExtractor):
         x_dev = x.to(target_device)
         amp_enabled = target_device.type == "cuda" and self.use_amp
 
-        with torch.inference_mode(), torch.amp.autocast(
-            "cuda", dtype=torch.float16, enabled=amp_enabled
+        with (
+            torch.inference_mode(),
+            torch.amp.autocast("cuda", dtype=torch.float16, enabled=amp_enabled),
         ):
             if self.provider == "timm":
                 raw_by_idx = self._forward_timm(x_dev, unique_indices, h_p, w_p)

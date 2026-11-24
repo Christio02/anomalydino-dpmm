@@ -21,14 +21,18 @@ def _unpack_images_from_batch(batch: Any) -> torch.Tensor:
         return batch
     if isinstance(batch, (tuple, list)):
         if not batch or not isinstance(batch[0], torch.Tensor):
-            raise TypeError("Expected first element of batch sequence to be a torch.Tensor.")
+            raise TypeError(
+                "Expected first element of batch sequence to be a torch.Tensor."
+            )
         return batch[0]
     if isinstance(batch, Mapping):
         for key in ("image", "images"):
             if key in batch and isinstance(batch[key], torch.Tensor):
                 return batch[key]
         raise KeyError("Batch dict must contain an 'image' or 'images' tensor.")
-    raise TypeError(f"Unsupported batch type for reducer fitting: {type(batch).__name__}.")
+    raise TypeError(
+        f"Unsupported batch type for reducer fitting: {type(batch).__name__}."
+    )
 
 
 class WideResNet50Stream(FeatureStreamExtractor):
@@ -74,7 +78,9 @@ class WideResNet50Stream(FeatureStreamExtractor):
 
         if backbone_model is None:
             if backbone != "wide_resnet50_2":
-                raise ValueError(f"Unsupported backbone {backbone!r}; expected 'wide_resnet50_2'.")
+                raise ValueError(
+                    f"Unsupported backbone {backbone!r}; expected 'wide_resnet50_2'."
+                )
             from torchvision.models import Wide_ResNet50_2_Weights, wide_resnet50_2
 
             weights = Wide_ResNet50_2_Weights.IMAGENET1K_V1 if pretrained else None
@@ -156,7 +162,9 @@ class WideResNet50Stream(FeatureStreamExtractor):
     def _extract_raw(self, images: torch.Tensor) -> torch.Tensor:
         """Run backbone forward pass and return concatenated, pooled spatial features."""
         if images.ndim != 4:
-            raise ValueError(f"Expected 4D image tensor [B, C, H, W], got shape {images.shape}.")
+            raise ValueError(
+                f"Expected 4D image tensor [B, C, H, W], got shape {images.shape}."
+            )
 
         x = images.to(self._model_device())
         self._hook_outputs.clear()
@@ -173,7 +181,9 @@ class WideResNet50Stream(FeatureStreamExtractor):
         aligned = [
             feat
             if feat.shape[-2:] == target_hw
-            else F.interpolate(feat, size=target_hw, mode="bilinear", align_corners=False)
+            else F.interpolate(
+                feat, size=target_hw, mode="bilinear", align_corners=False
+            )
             for feat in pooled
         ]
         return torch.cat(aligned, dim=1)
@@ -209,11 +219,7 @@ class WideResNet50Stream(FeatureStreamExtractor):
             images = _unpack_images_from_batch(batch)
             raw = self._extract_raw(images)
             vecs = (
-                raw.permute(0, 2, 3, 1)
-                .reshape(-1, self._in_dim)
-                .detach()
-                .cpu()
-                .numpy()
+                raw.permute(0, 2, 3, 1).reshape(-1, self._in_dim).detach().cpu().numpy()
             )
             if max_samples is not None and total_vectors + vecs.shape[0] > max_samples:
                 vecs = vecs[: max_samples - total_vectors]
@@ -236,7 +242,9 @@ class WideResNet50Stream(FeatureStreamExtractor):
         buffer_count = 0
         fitted_any = False
 
-        for vecs in self._iter_flattened_vectors(train_normal_loader, max_samples=max_samples):
+        for vecs in self._iter_flattened_vectors(
+            train_normal_loader, max_samples=max_samples
+        ):
             buffer_chunks.append(vecs)
             buffer_count += vecs.shape[0]
             if buffer_count >= min_chunk_size:
@@ -275,7 +283,9 @@ class WideResNet50Stream(FeatureStreamExtractor):
         total_count = 0
         sample_array: np.ndarray | None = None
 
-        for vecs in self._iter_flattened_vectors(train_normal_loader, max_samples=max_samples):
+        for vecs in self._iter_flattened_vectors(
+            train_normal_loader, max_samples=max_samples
+        ):
             if sample_array is None:
                 sample_array = vecs
             running_sum += vecs.sum(axis=0, dtype=np.float64)
@@ -285,7 +295,9 @@ class WideResNet50Stream(FeatureStreamExtractor):
             raise ValueError("No feature vectors extracted from train_normal_loader.")
 
         empirical_mean = running_sum / float(total_count)
-        grp = GaussianRandomProjection(n_components=self.out_dim, random_state=self.seed)
+        grp = GaussianRandomProjection(
+            n_components=self.out_dim, random_state=self.seed
+        )
         grp.fit(sample_array)
 
         self._copy_projection_params(grp.components_, empirical_mean)
@@ -353,11 +365,23 @@ class WideResNet50Stream(FeatureStreamExtractor):
             )
 
         self.proj_weight.copy_(
-            torch.as_tensor(state["proj_weight"], dtype=self.proj_weight.dtype, device=self.proj_weight.device)
+            torch.as_tensor(
+                state["proj_weight"],
+                dtype=self.proj_weight.dtype,
+                device=self.proj_weight.device,
+            )
         )
         self.proj_mean.copy_(
-            torch.as_tensor(state["proj_mean"], dtype=self.proj_mean.dtype, device=self.proj_mean.device)
+            torch.as_tensor(
+                state["proj_mean"],
+                dtype=self.proj_mean.dtype,
+                device=self.proj_mean.device,
+            )
         )
         self.reducer_fitted.copy_(
-            torch.as_tensor(state["reducer_fitted"], dtype=self.reducer_fitted.dtype, device=self.reducer_fitted.device)
+            torch.as_tensor(
+                state["reducer_fitted"],
+                dtype=self.reducer_fitted.dtype,
+                device=self.reducer_fitted.device,
+            )
         )

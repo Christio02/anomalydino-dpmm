@@ -24,26 +24,26 @@ def normalize(*tensors: torch.Tensor, dim: list = None):
 
     if len(tensors) == 1:
         return normalized_tensors[0]
-    
+
     return normalized_tensors
 
 
 def makedirs(*folders):
     if len(folders) == 0:
         return "."
-    
+
     path = os.path.join(*folders)
     path = os.path.expanduser(path)
     os.makedirs(path, exist_ok=True)
     return path
 
 
-def seed_everything(seed:int=0) -> None:
+def seed_everything(seed: int = 0) -> None:
     """
     Seed method for PyTorch for reproducibility.
     """
     random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -51,11 +51,19 @@ def seed_everything(seed:int=0) -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+
 def save_checkpoint(path, **kwargs):
     torch.save(kwargs, path)
 
 
-def ifequal_else(variable: str, expected_value: str, true_value: str, false_value: str = "", *, _root_):
+def ifequal_else(
+    variable: str,
+    expected_value: str,
+    true_value: str,
+    false_value: str = "",
+    *,
+    _root_,
+):
     return true_value if variable == expected_value else false_value
 
 
@@ -93,28 +101,29 @@ def dump_config(path, cfg):
             yaml.dump(cfg, f)
     else:
         raise NotImplementedError(
-            f"dump_config supports DictConfig and dict, but got {type(cfg).__name__}")
+            f"dump_config supports DictConfig and dict, but got {type(cfg).__name__}"
+        )
 
 
 def setup_wandb(logdir, is_resumed, cfg):
-    wandb_params_path = os.path.join(logdir, 'wandb.yaml')
+    wandb_params_path = os.path.join(logdir, "wandb.yaml")
     if os.path.exists(wandb_params_path) and is_resumed:
         wandb_params = load_config(wandb_params_path)
     else:
-        wandb_params = {'id': wandb.util.generate_id()}
+        wandb_params = {"id": wandb.util.generate_id()}
 
     wandb.init(
         project=cfg.wandb_project,
         config=cfg,
-        resume='allow',
-        id=wandb_params['id'],
+        resume="allow",
+        id=wandb_params["id"],
     )
 
-    wandb_params['name'] = wandb.run.name
-    wandb_params['project'] = wandb.run.project
-    wandb_params['link'] = f'https://wandb.ai/{wandb.run.path}'
+    wandb_params["name"] = wandb.run.name
+    wandb_params["project"] = wandb.run.project
+    wandb_params["link"] = f"https://wandb.ai/{wandb.run.path}"
     dump_config(wandb_params_path, wandb_params)
-    
+
     wandb_dir = wandb.run.dir
     return wandb_dir
 
@@ -125,7 +134,9 @@ def setup_device(device):
     return device
 
 
-def augment_image(img_ref, augmentation = "rotate", angles = [0, 45, 90, 135, 180, 225, 270, 315]):
+def augment_image(
+    img_ref, augmentation="rotate", angles=[0, 45, 90, 135, 180, 225, 270, 315]
+):
     """
     Simply augmentation of images, currently just rotation.
     """
@@ -139,14 +150,22 @@ def augment_image(img_ref, augmentation = "rotate", angles = [0, 45, 90, 135, 18
 def rotate_image(image, angle):
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_DEFAULT)
+    result = cv2.warpAffine(
+        image,
+        rot_mat,
+        image.shape[1::-1],
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_DEFAULT,
+    )
     return result
 
 
 def dists2map(dists, img_shape):
     # resize and smooth the distance map
     # caution: cv2.resize expects the shape in (width, height) order (not (height, width) as in numpy, so indices here are swapped!
-    dists = cv2.resize(dists, (img_shape[1], img_shape[0]), interpolation = cv2.INTER_LINEAR)
+    dists = cv2.resize(
+        dists, (img_shape[1], img_shape[0]), interpolation=cv2.INTER_LINEAR
+    )
     dists = gaussian_filter(dists, sigma=4)
     return dists
 
@@ -160,22 +179,32 @@ def resize_mask_img(mask, image_shape, grid_size1):
     return mask
 
 
-def plot_ref_images(img_list, mask_list, vis_background_list, grid_size, save_path, title = "Reference Images", img_names = None):
+def plot_ref_images(
+    img_list,
+    mask_list,
+    vis_background_list,
+    grid_size,
+    save_path,
+    title="Reference Images",
+    img_names=None,
+):
     k = min(len(img_list), 32)  # reduce max number of ref samples to plot to 32
 
-    n_aug = len(img_list)//len(img_names)
+    n_aug = len(img_list) // len(img_names)
 
-    fig, axs = plt.subplots(k, 3, figsize=(10, 3.5*k))
+    fig, axs = plt.subplots(k, 3, figsize=(10, 3.5 * k))
     if k == 1:
         axs = axs.reshape(1, -1)
     for i in range(k):
         axs[i, 0].imshow(img_list[i])
         axs[i, 1].imshow(vis_background_list[i])
         axs[i, 2].imshow(img_list[i])
-        axs[i, 2].imshow(resize_mask_img(mask_list[i], img_list[i].shape, grid_size), alpha=0.5)
-        axs[i, 0].axis('off')
-        axs[i, 1].axis('off')
-        axs[i, 2].axis('off')
+        axs[i, 2].imshow(
+            resize_mask_img(mask_list[i], img_list[i].shape, grid_size), alpha=0.5
+        )
+        axs[i, 0].axis("off")
+        axs[i, 1].axis("off")
+        axs[i, 2].axis("off")
         if i % n_aug == 0:
             axs[i, 0].title.set_text(f"Image: {img_names[i // n_aug]}")
         else:
@@ -193,13 +222,15 @@ def plot_ref_images(img_list, mask_list, vis_background_list, grid_size, save_pa
 def conv_to_vit_features(features):
     N, C, H, W = features.shape
     grid_size = (H, W)
-    features = features.permute(0,2,3,1).reshape(N, H*W, C)  # NCHW -> NSD
+    features = features.permute(0, 2, 3, 1).reshape(N, H * W, C)  # NCHW -> NSD
     return features, grid_size
 
 
 def vit_to_conv_features(features, grid_size):
     N, S, D = features.shape
-    features = features.reshape(N, grid_size[0], grid_size[1], D).permute(0,3,1,2)  # NSD -> NCHW
+    features = features.reshape(N, grid_size[0], grid_size[1], D).permute(
+        0, 3, 1, 2
+    )  # NSD -> NCHW
     return features
 
 

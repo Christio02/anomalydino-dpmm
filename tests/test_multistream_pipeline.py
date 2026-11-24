@@ -49,7 +49,9 @@ class SentinelTestLoader:
     """DataLoader sentinel that raises AssertionError if ever iterated."""
 
     def __iter__(self):
-        raise AssertionError("Test loader must never be iterated during training/calibration!")
+        raise AssertionError(
+            "Test loader must never be iterated during training/calibration!"
+        )
 
     def __len__(self) -> int:
         return 1
@@ -93,7 +95,9 @@ class MockViTS14(nn.Module):
                 bsz, c_dim, h_p, w_p = feat.shape
                 patch_tokens = feat.flatten(2).transpose(1, 2)  # (B, N_p, C)
                 n_prefix = 1 + self.num_register_tokens
-                prefix = torch.zeros((bsz, n_prefix, c_dim), dtype=feat.dtype, device=feat.device)
+                prefix = torch.zeros(
+                    (bsz, n_prefix, c_dim), dtype=feat.dtype, device=feat.device
+                )
                 outputs.append(torch.cat([prefix, patch_tokens], dim=1))
             else:
                 outputs.append(feat)
@@ -131,9 +135,13 @@ class DummyFeatureStream(FeatureStreamExtractor):
         gen = torch.Generator(device=images.device)
         gen.manual_seed(int(images.abs().sum().item() * 1000) % 100000 + self._dim)
 
-        idx = torch.randint(0, n_centers, (bsz, h_out, w_out), generator=gen, device=images.device)
+        idx = torch.randint(
+            0, n_centers, (bsz, h_out, w_out), generator=gen, device=images.device
+        )
         feats = self.centers[idx]  # (B, H, W, D)
-        noise = 0.05 * torch.randn(feats.shape, generator=gen, device=images.device, dtype=feats.dtype)
+        noise = 0.05 * torch.randn(
+            feats.shape, generator=gen, device=images.device, dtype=feats.dtype
+        )
         out = (feats + noise).permute(0, 3, 1, 2).contiguous()
         return {self._name: out}
 
@@ -179,7 +187,9 @@ class TestPhase0LeakageAndSplits(unittest.TestCase):
                 test_paths=["/split_c/patient_11.png"],
             )
 
-    def test_sentinel_test_loader_never_touched_during_training_and_calibration(self) -> None:
+    def test_sentinel_test_loader_never_touched_during_training_and_calibration(
+        self,
+    ) -> None:
         sentinel_test_loader = SentinelTestLoader()
         with self.assertRaises(AssertionError):
             list(sentinel_test_loader)
@@ -346,7 +356,9 @@ class TestPhase1FeatureExtractors(unittest.TestCase):
         merged.fit_reducer([dummy_batch])
 
         out = merged.extract(dummy_batch)
-        self.assertEqual(set(out.keys()), {"wrn_l2l3", "dino_b4", "dino_b8", "dino_b12"})
+        self.assertEqual(
+            set(out.keys()), {"wrn_l2l3", "dino_b4", "dino_b8", "dino_b12"}
+        )
         self.assertEqual(tuple(out["wrn_l2l3"].shape), (2, 256, 56, 56))
         for k in ("dino_b4", "dino_b8", "dino_b12"):
             self.assertEqual(tuple(out[k].shape), (2, 384, 32, 32))
@@ -375,10 +387,18 @@ class TestPhase2DPMMAndScoring(unittest.TestCase):
 
         cfgs = {
             "stream_a": StreamDPMMConfig(
-                name="stream_a", dim=8, max_components=30, epochs=6, scoring_metric="cosine"
+                name="stream_a",
+                dim=8,
+                max_components=30,
+                epochs=6,
+                scoring_metric="cosine",
             ),
             "stream_b": StreamDPMMConfig(
-                name="stream_b", dim=6, max_components=25, epochs=6, scoring_metric="mahalanobis"
+                name="stream_b",
+                dim=6,
+                max_components=25,
+                epochs=6,
+                scoring_metric="mahalanobis",
             ),
         }
         dpmm = MultiStreamDPMM(cfgs, device="cpu")
@@ -441,12 +461,16 @@ class TestPhase2DPMMAndScoring(unittest.TestCase):
         # 2. Diagonal Mahalanobis distance with mahalanobis_eps=1e-4
         m_eps = 1e-4
         diff = y.unsqueeze(1) - mu.unsqueeze(0)  # (N, M, D)
-        ref_mahal = torch.sqrt(((diff ** 2) / (var.unsqueeze(0) + m_eps)).sum(dim=-1).min(dim=1).values)
-        got_mahal = dpmm.score_mahalanobis(y, weight_threshold=wt, mahalanobis_eps=m_eps)
+        ref_mahal = torch.sqrt(
+            ((diff**2) / (var.unsqueeze(0) + m_eps)).sum(dim=-1).min(dim=1).values
+        )
+        got_mahal = dpmm.score_mahalanobis(
+            y, weight_threshold=wt, mahalanobis_eps=m_eps
+        )
         self.assertTrue(torch.allclose(got_mahal, ref_mahal, atol=1e-5, rtol=1e-5))
 
         # 3. Euclidean distance: min_k ||y - mu_k||_2
-        ref_euc = torch.sqrt((diff ** 2).sum(dim=-1).min(dim=1).values)
+        ref_euc = torch.sqrt((diff**2).sum(dim=-1).min(dim=1).values)
         got_euc = dpmm.score_euclidean(y, weight_threshold=wt)
         self.assertTrue(torch.allclose(got_euc, ref_euc, atol=1e-5, rtol=1e-5))
 
@@ -469,10 +493,18 @@ class TestPhase2DPMMAndScoring(unittest.TestCase):
 
         cfgs = {
             "wrn_l2l3": StreamDPMMConfig(
-                name="wrn_l2l3", dim=64, max_components=15, epochs=2, scoring_metric="mahalanobis"
+                name="wrn_l2l3",
+                dim=64,
+                max_components=15,
+                epochs=2,
+                scoring_metric="mahalanobis",
             ),
             "dino_b4": StreamDPMMConfig(
-                name="dino_b4", dim=64, max_components=15, epochs=2, scoring_metric="cosine"
+                name="dino_b4",
+                dim=64,
+                max_components=15,
+                epochs=2,
+                scoring_metric="cosine",
             ),
         }
         dpmm1 = MultiStreamDPMM(cfgs, device="cpu")
@@ -545,8 +577,12 @@ class TestPhase3CalibrationAndFusion(unittest.TestCase):
 
         prev_max = float("inf")
         for sigma in (0.0, 2.0, 4.0):
-            up_32 = upsample_score_map(spike_32, target_size=(448, 448), blur_sigma=sigma)
-            up_56 = upsample_score_map(spike_56, target_size=(448, 448), blur_sigma=sigma)
+            up_32 = upsample_score_map(
+                spike_32, target_size=(448, 448), blur_sigma=sigma
+            )
+            up_56 = upsample_score_map(
+                spike_56, target_size=(448, 448), blur_sigma=sigma
+            )
             self.assertEqual(tuple(up_32.shape), (2, 1, 448, 448))
             self.assertEqual(tuple(up_56.shape), (2, 1, 448, 448))
             self.assertTrue(torch.isfinite(up_32).all())
@@ -589,7 +625,9 @@ class TestPhase3CalibrationAndFusion(unittest.TestCase):
 
         # max
         head_max = FusionHead(mode="max")
-        self.assertTrue(torch.allclose(head_max.fuse(maps), torch.maximum(m1, m2), atol=1e-6))
+        self.assertTrue(
+            torch.allclose(head_max.fuse(maps), torch.maximum(m1, m2), atol=1e-6)
+        )
 
         # weighted_sum with unnormalized weights (3.0, 1.0 -> 0.75, 0.25)
         head_ws = FusionHead(mode="weighted_sum", weights={"s1": 3.0, "s2": 1.0})
@@ -620,12 +658,22 @@ class TestPhase3CalibrationAndFusion(unittest.TestCase):
         # Image-level aggregation: max
         head_img_max = FusionHead(image_score_aggregation="max")
         expected_max = fused_val.reshape(4, -1).max(dim=1).values
-        self.assertTrue(torch.allclose(head_img_max.compute_image_scores(fused_val), expected_max, atol=1e-6))
+        self.assertTrue(
+            torch.allclose(
+                head_img_max.compute_image_scores(fused_val), expected_max, atol=1e-6
+            )
+        )
 
         # Image-level aggregation: top_k_mean
         k = max(1, int(round(64 * 64 * 0.01)))
-        expected_topk = torch.topk(fused_val.reshape(4, -1), k=k, dim=1).values.mean(dim=1)
-        self.assertTrue(torch.allclose(head.compute_image_scores(fused_val), expected_topk, atol=1e-6))
+        expected_topk = torch.topk(fused_val.reshape(4, -1), k=k, dim=1).values.mean(
+            dim=1
+        )
+        self.assertTrue(
+            torch.allclose(
+                head.compute_image_scores(fused_val), expected_topk, atol=1e-6
+            )
+        )
 
 
 class TestPhase4EvaluationAndAblations(unittest.TestCase):
@@ -659,7 +707,9 @@ class TestPhase4EvaluationAndAblations(unittest.TestCase):
         self.assertGreater(im["image_aupr"], 0.99)
         self.assertGreater(im["image_auroc"], 0.99)
 
-        strat = compute_stratified_metrics(scores, gt_masks, labels, thresholds=thresholds)
+        strat = compute_stratified_metrics(
+            scores, gt_masks, labels, thresholds=thresholds
+        )
         for bucket in ("tiny", "medium", "large"):
             self.assertEqual(strat[bucket]["n_anomalous"], 1)
             self.assertGreater(float(strat[bucket]["pixel_aupr"]), 0.99)
@@ -720,9 +770,27 @@ class TestPhase4EvaluationAndAblations(unittest.TestCase):
             "latency_ms": 12.34,
             "peak_vram_gb": 0.0,
             "stratified": {
-                "tiny": {"n_anomalous": 2, "pixel_aupr": 0.65, "dice_fpr_1pct": 0.45, "dice_fpr_5pct": 0.50, "dice_fpr_10pct": 0.48},
-                "medium": {"n_anomalous": 3, "pixel_aupr": 0.78, "dice_fpr_1pct": 0.60, "dice_fpr_5pct": 0.62, "dice_fpr_10pct": 0.61},
-                "large": {"n_anomalous": 1, "pixel_aupr": 0.85, "dice_fpr_1pct": 0.70, "dice_fpr_5pct": 0.72, "dice_fpr_10pct": 0.71},
+                "tiny": {
+                    "n_anomalous": 2,
+                    "pixel_aupr": 0.65,
+                    "dice_fpr_1pct": 0.45,
+                    "dice_fpr_5pct": 0.50,
+                    "dice_fpr_10pct": 0.48,
+                },
+                "medium": {
+                    "n_anomalous": 3,
+                    "pixel_aupr": 0.78,
+                    "dice_fpr_1pct": 0.60,
+                    "dice_fpr_5pct": 0.62,
+                    "dice_fpr_10pct": 0.61,
+                },
+                "large": {
+                    "n_anomalous": 1,
+                    "pixel_aupr": 0.85,
+                    "dice_fpr_1pct": 0.70,
+                    "dice_fpr_5pct": 0.72,
+                    "dice_fpr_10pct": 0.71,
+                },
             },
         }
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -741,7 +809,9 @@ class TestPhase4EvaluationAndAblations(unittest.TestCase):
             payload = json.loads(Path(written_json).read_text(encoding="utf-8"))
             self.assertIn("per_seed", payload)
             self.assertIn("summary", payload)
-            self.assertAlmostEqual(payload["summary"]["pixel_aupr"]["mean"], 0.75, places=6)
+            self.assertAlmostEqual(
+                payload["summary"]["pixel_aupr"]["mean"], 0.75, places=6
+            )
 
     def test_config_loads_and_builds_all_nine_ablation_specs(self) -> None:
         cfg_path = REPO_ROOT / "configs" / "hybrid_multistream.yaml"

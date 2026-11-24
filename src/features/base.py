@@ -52,7 +52,8 @@ class MultiStreamFeatureExtractor(FeatureStreamExtractor):
 
     def __init__(
         self,
-        extractors: Sequence[FeatureStreamExtractor] | Mapping[str, FeatureStreamExtractor],
+        extractors: Sequence[FeatureStreamExtractor]
+        | Mapping[str, FeatureStreamExtractor],
     ) -> None:
         super().__init__()
         if isinstance(extractors, Mapping):
