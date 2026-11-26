@@ -178,11 +178,10 @@ def main():
     active_weights = dpmm.weights_ > 0.01
     centroids = dpmm.means_[active_weights]
     print(
-        f"✨ Dirichlet Process converged. Compressed feature space to {len(centroids)} active pattern clusters."
+        f"✨ Dirichlet Process fit finished. Found {len(centroids)} active pattern clusters."
     )
 
-    # Convert centroids back to PyTorch for blazing-fast GPU matrix distances
-    centroids_tensor = torch.from_numpy(centroids).to(device)  # Shape: [K_active, Dim]
+    centroids_tensor = torch.from_numpy(centroids)
 
     # Step 5: Test and Visualize Anomaly Localization
     print("🔍 Running test evaluation on anomalous patterns...")
@@ -210,6 +209,7 @@ def main():
 
             # Calculate cosine distances to nearest cluster centroid
             # Cosine distance = 1.0 - Cosine Similarity
+            centroids_tensor = centroids_tensor.to(test_features)
             cos_similarity = torch.matmul(
                 test_features, centroids_tensor.T
             )  # [1024, K_active]
